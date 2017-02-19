@@ -1,0 +1,46 @@
+-- This example script performs a PID control
+-- Be very careful when calling V-REP API functions from here:
+-- 1. This routine gets called often, so it might slow down simulation (this is called at each dynamic simulation step, by default 10x more often than a child script)
+-- 2. Some API functions are not meant to be called from here
+
+-- Following data is handed over from V-REP:
+init,revolute,cyclic,jointHandle,passCnt,totalPasses,currentPos,targetPos,errorValue,effort,dynStepSize,lowLimit,highLimit,targetVel,maxForceTorque,velUpperLimit=...
+
+
+-- The control happens here:
+-- 1. PID parameter def:
+if not PID_P then
+	PID_P=0.1
+	PID_I=0
+	PID_D=0
+end
+-- 2. Clear some values when the dynamic joint calls this the first time (this can happen several times, if the joint is reset dynamically):
+if init then
+	pidCumulativeErrorForIntegralParam=0
+	pidLastErrorForDerivativeParam=0
+end
+-- 3. Proportional part:
+ctrl=errorValue*PID_P
+-- 4. Integral part:
+if PID_I~=0 then
+	pidCumulativeErrorForIntegralParam=pidCumulativeErrorForIntegralParam+errorValue
+else
+	pidCumulativeErrorForIntegralParam=0
+end
+ctrl=ctrl+pidCumulativeErrorForIntegralParam*PID_I
+-- 5. Derivative part:
+ctrl=ctrl+(errorValue-pidLastErrorForDerivativeParam)*PID_D
+pidLastErrorForDerivativeParam=errorValue
+-- 6. Calculate the velocity needed to reach the position in one dynamic time step:
+velocityToApply=ctrl/dynStepSize
+if (velocityToApply>velUpperLimit) then
+	velocityToApply=velUpperLimit
+end
+if (velocityToApply<-velUpperLimit) then
+	velocityToApply=-velUpperLimit
+end
+forceOrTorqueToApply=maxForceTorque
+
+
+-- Following data must be returned to V-REP:
+return forceOrTorqueToApply,velocityToApply
